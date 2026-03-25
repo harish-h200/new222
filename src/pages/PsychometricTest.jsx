@@ -6,39 +6,39 @@ import './PsychometricTest.css';
 const questions = [
     {
         id: 1,
-        text: "When facing a complex system, what excites you most?",
+        text: "When facing a complex problem, what excites you most?",
         options: [
-            { text: "Writing logic to automate its behavior", domain: "CSE", weight: 2 },
-            { text: "Understanding the physical forces acting upon it", domain: "Aero", weight: 2 },
-            { text: "Analyzing its economic viability and market impact", domain: "Finance", weight: 2 }
+            { text: "Building intelligent models that can learn and predict", domain: "AI/ML", weight: 2 },
+            { text: "Designing robust and scalable architectures", domain: "Backend", weight: 2 },
+            { text: "Structuring and processing massive amounts of information", domain: "Data", weight: 2 }
         ]
     },
     {
         id: 2,
         text: "Which of these futuristic scenarios sounds most appealing as a career project?",
         options: [
-            { text: "Developing a sentient AI assistant", domain: "CSE", weight: 2 },
-            { text: "Designing a reusable orbital spacecraft", domain: "Aero", weight: 2 },
-            { text: "Creating a decentralized global currency system", domain: "Finance", weight: 2 }
+            { text: "Developing a sentient AI assistant", domain: "AI/ML", weight: 2 },
+            { text: "Building the core infrastructure of the next fast global network", domain: "Backend", weight: 2 },
+            { text: "Creating a real-time global analytics pipeline", domain: "Data", weight: 2 }
         ]
     },
     {
         id: 3,
         text: "In your free time, what kind of problems do you naturally gravitate towards?",
         options: [
-            { text: "Optimizing software or fixing bugs", domain: "CSE", weight: 2 },
-            { text: "Building models or understanding aerodynamics", domain: "Aero", weight: 2 },
-            { text: "Tracking investments or predicting market trends", domain: "Finance", weight: 2 },
-            { text: "Programming drone flight paths (Software + Physics)", domain: "Cross", weight: { CSE: 1, Aero: 1 } }
+            { text: "Experimenting with LLMs and new algorithms", domain: "AI/ML", weight: 2 },
+            { text: "Optimizing software and fixing system bottlenecks", domain: "Backend", weight: 2 },
+            { text: "Organizing files efficiently or writing scripts for automation", domain: "Data", weight: 2 },
+            { text: "Training models on large datasets (AI + Data)", domain: "Cross", weight: { 'AI/ML': 1, Data: 1 } }
         ]
     },
     {
         id: 4,
         text: "How do you prefer to validate your work?",
         options: [
-            { text: "Running unit tests and code compilation", domain: "CSE", weight: 1 },
-            { text: "Wind tunnel simulations and material stress tests", domain: "Aero", weight: 1 },
-            { text: "Statistical backtesting and financial modeling", domain: "Finance", weight: 1 }
+            { text: "Checking accuracy, F1 scores, and model evaluations", domain: "AI/ML", weight: 1 },
+            { text: "Running load tests and system performance benchmarks", domain: "Backend", weight: 1 },
+            { text: "Verifying data integrity and pipeline throughput", domain: "Data", weight: 1 }
         ]
     }
 ];
@@ -67,12 +67,12 @@ const PsychometricTest = () => {
     };
 
     const calculateResults = () => {
-        const scores = { CSE: 0, Aero: 0, Finance: 0 };
+        const scores = { 'AI/ML': 0, Backend: 0, Data: 0 };
 
         Object.values(answers).forEach(opt => {
             if (opt.domain === "Cross") {
-                scores.CSE += opt.weight.CSE;
-                scores.Aero += opt.weight.Aero;
+                scores['AI/ML'] += opt.weight['AI/ML'];
+                scores.Data += opt.weight.Data;
             } else {
                 scores[opt.domain] += opt.weight;
             }
@@ -105,8 +105,8 @@ const PsychometricTest = () => {
 
                     <div className="domains-wrapper">
                         {recommendedDomains.map(domain => (
-                            <div key={domain} className={`domain-badge domain-${domain.toLowerCase()}`}>
-                                {domain === 'CSE' ? 'Computer Science' : domain === 'Aero' ? 'Aerospace Engineering' : 'Financial Technology'}
+                            <div key={domain} className={`domain-badge domain-${domain.toLowerCase().replace('/', '-')}`}>
+                                {domain === 'AI/ML' ? 'AI & Machine Learning' : domain === 'Backend' ? 'Backend Systems' : 'Data Engineering'}
                             </div>
                         ))}
                     </div>

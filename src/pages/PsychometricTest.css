@@ -15,6 +15,7 @@
     margin-bottom: 24px;
     background: var(--accent-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -128,19 +129,19 @@
     border: 1px solid var(--glass-border);
 }
 
-.domain-cse {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border-color: rgba(59, 130, 246, 0.3);
+.domain-ai-ml {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border-color: rgba(99, 102, 241, 0.3);
 }
 
-.domain-aero {
+.domain-backend {
     background: rgba(236, 72, 153, 0.15);
     color: #f472b6;
     border-color: rgba(236, 72, 153, 0.3);
 }
 
-.domain-finance {
+.domain-data {
     background: rgba(16, 185, 129, 0.15);
     color: #34d399;
     border-color: rgba(16, 185, 129, 0.3);
