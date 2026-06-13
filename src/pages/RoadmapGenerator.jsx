@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
 import {
     ReactFlow,
     MiniMap,
@@ -191,6 +190,12 @@ const RoadmapGenerator = () => {
     const [level, setLevel] = useState('UG'); // UG, PG
     const [experience, setExperience] = useState('Beginner'); // Beginner, Experienced
 
+    const [viewMode, setViewMode] = useState('generator'); // 'generator' or 'saved'
+    const [savedRoadmaps, setSavedRoadmaps] = useState([]);
+    const [selectedRoadmapId, setSelectedRoadmapId] = useState('');
+    const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'success' | 'error'
+
+    // Declare ALL flow state first so callbacks below can safely reference setNodes/setEdges
     const [dbCourses, setDbCourses] = useState([]);
     const [dbPrereqs, setDbPrereqs] = useState([]);
 
@@ -199,74 +204,170 @@ const RoadmapGenerator = () => {
 
     const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
-    // Load data from Supabase
+    const loadSavedRoadmapIntoCanvas = useCallback((rm) => {
+        const mappedNodes = rm.nodes.map(n => ({
+            id: n.id,
+            type: 'custom',
+            data: {
+                label: n.customLabel || (n.course ? n.course.title : 'Node'),
+                type: n.nodeType,
+                icon: n.course ? (n.course.tags?.includes('AI') || n.course.tags?.includes('ML') ? 'code' : 'book') : 'layers',
+                duration: n.course ? n.course.durationEstimate : null
+            },
+            position: { x: n.positionX, y: n.positionY }
+        }));
+
+        const mappedEdges = rm.edges.map(e => ({
+            id: e.id,
+            source: e.sourceNodeId,
+            target: e.targetNodeId,
+            animated: e.isAnimated,
+            style: { stroke: '#6366f1', strokeWidth: 2 }
+        }));
+
+        setNodes(mappedNodes);
+        setEdges(mappedEdges);
+    }, [setNodes, setEdges]);
+
+    const loadSavedRoadmaps = useCallback(async () => {
+        const email = localStorage.getItem('userEmail') || 'student@example.com';
+        try {
+            const res = await fetch(`/api/users/${email}/roadmaps`);
+            if (res.ok) {
+                const data = await res.json();
+                setSavedRoadmaps(data);
+                if (data.length > 0) {
+                    setSelectedRoadmapId(data[0].id);
+                    loadSavedRoadmapIntoCanvas(data[0]);
+                } else {
+                    setNodes([]);
+                    setEdges([]);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load saved roadmaps:", err);
+        }
+    }, [loadSavedRoadmapIntoCanvas, setNodes, setEdges]);
+
+    const handleSelectSavedRoadmap = (id) => {
+        setSelectedRoadmapId(id);
+        const rm = savedRoadmaps.find(r => r.id === id);
+        if (rm) {
+            loadSavedRoadmapIntoCanvas(rm);
+        }
+    };
+
+    // Load data from local API
     useEffect(() => {
         async function loadData() {
-            const [cRes, pRes] = await Promise.all([
-                supabase.from('courses').select('*'),
-                supabase.from('course_prerequisites').select('*')
-            ]);
+            try {
+                const [cRes, pRes] = await Promise.all([
+                    fetch('/api/courses'),
+                    fetch('/api/prerequisites')
+                ]);
 
-            if (cRes.data) setDbCourses(cRes.data);
-            if (pRes.data) setDbPrereqs(pRes.data);
+                if (cRes.ok && pRes.ok) {
+                    const courses = await cRes.json();
+                    const prereqs = await pRes.json();
+                    setDbCourses(courses);
+                    setDbPrereqs(prereqs);
+                } else {
+                    console.error("Failed to fetch courses/prerequisites from local API");
+                }
+            } catch (err) {
+                console.error("Failed to connect to local API:", err);
+            }
         }
         loadData();
     }, []);
 
     // Generate dynamic roadmap whenever inputs change
     useEffect(() => {
-        if (dbCourses.length > 0) {
+        if (viewMode === 'generator' && dbCourses.length > 0) {
             const { nodes: newNodes, edges: newEdges } = generateDynamicRoadmap(dbCourses, dbPrereqs, problem, level, experience);
             setNodes(newNodes);
             setEdges(newEdges);
         }
-    }, [dbCourses, dbPrereqs, problem, level, experience, setNodes, setEdges]);
+    }, [viewMode, dbCourses, dbPrereqs, problem, level, experience, setNodes, setEdges]);
 
     const onInit = useCallback((reactFlowInstance) => {
         setTimeout(() => reactFlowInstance.fitView({ padding: 50 }), 100);
     }, []);
 
     const handleSave = async () => {
-        // Ideally save to roadmaps, roadmap_nodes, roadmap_edges tables
+        if (!problem?.id) {
+            setSaveStatus('error_no_goal');
+            setTimeout(() => setSaveStatus(null), 4000);
+            return;
+        }
+        if (nodes.length === 0) {
+            setSaveStatus('error_empty');
+            setTimeout(() => setSaveStatus(null), 4000);
+            return;
+        }
+
+        setSaveStatus('saving');
+
         try {
-            // Wait, we need a user ID. But since there's no auth, we'll insert a mock user or just show success msg.
-            // A real app would: 
-            // const { data: roadmap } = await supabase.from('roadmaps').insert({ goal_id: problem.id }).select().single();
-            // ... insert nodes ... 
-            // ... insert edges ...
-            alert("Roadmap Saved to Database successfully!");
+            const email = localStorage.getItem('userEmail') || 'student@example.com';
+            let userId = null;
+
+            try {
+                const userRes = await fetch(`/api/users/${email}`);
+                if (userRes.ok) {
+                    const user = await userRes.json();
+                    userId = user.id;
+                }
+            } catch (e) {
+                console.error("Failed to fetch user by email:", e);
+            }
+
+            const payloadNodes = nodes.map(n => ({
+                id: n.id,
+                courseId: (n.id === 'root' || n.id === 'final') ? null : n.id,
+                customLabel: n.data?.label || null,
+                nodeType: n.data?.type || 'default',
+                positionX: n.position.x,
+                positionY: n.position.y,
+                status: 'unlocked'
+            }));
+
+            const payloadEdges = edges.map(e => ({
+                id: e.id,
+                sourceNodeId: e.source,
+                targetNodeId: e.target,
+                isAnimated: e.animated !== undefined ? e.animated : true
+            }));
+
+            const response = await fetch('/api/roadmaps', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    goalId: problem.id,
+                    userId,
+                    email,
+                    nodes: payloadNodes,
+                    edges: payloadEdges
+                })
+            });
+
+            if (response.ok) {
+                setSaveStatus('success');
+            } else {
+                const errBody = await response.json().catch(() => ({}));
+                console.error('Save failed:', errBody);
+                setSaveStatus('error');
+            }
         } catch (e) {
             console.error(e);
+            setSaveStatus('error');
         }
+
+        setTimeout(() => setSaveStatus(null), 4000);
     };
 
     return (
         <div className="roadmap-container">
-            <Panel position="top-left" className="config-panel glass-panel animate-fade-in">
-                <h3 className="panel-title">Configure Roadmap</h3>
-                <p className="panel-subtitle">Target: <span className="text-gradient">{problem.title}</span></p>
-
-                <div className="config-group">
-                    <label>Academic Level</label>
-                    <div className="toggle-group">
-                        <button className={`toggle-btn ${level === 'UG' ? 'active' : ''}`} onClick={() => setLevel('UG')}>UG</button>
-                        <button className={`toggle-btn ${level === 'PG' ? 'active' : ''}`} onClick={() => setLevel('PG')}>PG</button>
-                    </div>
-                </div>
-
-                <div className="config-group">
-                    <label>Prior Experience</label>
-                    <select value={experience} onChange={(e) => setExperience(e.target.value)} className="modern-select">
-                        <option value="Beginner">Beginner (needs more courses)</option>
-                        <option value="Experienced">Experienced (fast-track)</option>
-                    </select>
-                </div>
-
-                <button className="btn-primary w-full mt-4" onClick={handleSave}>
-                    Save to Profile
-                </button>
-            </Panel>
-
             <div className="flow-wrapper">
                 <ReactFlow
                     nodes={nodes}
@@ -279,6 +380,128 @@ const RoadmapGenerator = () => {
                     proOptions={{ hideAttribution: true }}
                     className="dark-flow"
                 >
+                    <Panel position="top-left" className="config-panel glass-panel animate-fade-in">
+                        <div className="tab-buttons-container" style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
+                            <button 
+                                className={`tab-btn ${viewMode === 'generator' ? 'active-tab' : ''}`} 
+                                onClick={() => {
+                                    setViewMode('generator');
+                                    if (dbCourses.length > 0) {
+                                        const { nodes: newNodes, edges: newEdges } = generateDynamicRoadmap(dbCourses, dbPrereqs, problem, level, experience);
+                                        setNodes(newNodes);
+                                        setEdges(newEdges);
+                                    }
+                                }}
+                                style={{
+                                    background: viewMode === 'generator' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                                    border: 'none',
+                                    color: viewMode === 'generator' ? '#a5b4fc' : '#94a3b8',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Generator
+                            </button>
+                            <button 
+                                className={`tab-btn ${viewMode === 'saved' ? 'active-tab' : ''}`} 
+                                onClick={() => {
+                                    setViewMode('saved');
+                                    loadSavedRoadmaps();
+                                }}
+                                style={{
+                                    background: viewMode === 'saved' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                                    border: 'none',
+                                    color: viewMode === 'saved' ? '#a5b4fc' : '#94a3b8',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Saved Roadmaps
+                            </button>
+                        </div>
+
+                        {viewMode === 'generator' ? (
+                            <>
+                                <h3 className="panel-title">Configure Roadmap</h3>
+                                <p className="panel-subtitle">Target: <span className="text-gradient">{problem.title}</span></p>
+
+                                <div className="config-group">
+                                    <label>Academic Level</label>
+                                    <div className="toggle-group">
+                                        <button className={`toggle-btn ${level === 'UG' ? 'active' : ''}`} onClick={() => setLevel('UG')}>UG</button>
+                                        <button className={`toggle-btn ${level === 'PG' ? 'active' : ''}`} onClick={() => setLevel('PG')}>PG</button>
+                                    </div>
+                                </div>
+
+                                <div className="config-group">
+                                    <label>Prior Experience</label>
+                                    <select value={experience} onChange={(e) => setExperience(e.target.value)} className="modern-select">
+                                        <option value="Beginner">Beginner (needs more courses)</option>
+                                        <option value="Experienced">Experienced (fast-track)</option>
+                                    </select>
+                                </div>
+
+                                <button
+                                    className="btn-primary w-full mt-4"
+                                    onClick={handleSave}
+                                    disabled={saveStatus === 'saving'}
+                                    style={{ opacity: saveStatus === 'saving' ? 0.7 : 1 }}
+                                >
+                                    {saveStatus === 'saving' ? 'Saving...' : 'Save to Profile'}
+                                </button>
+
+                                {saveStatus === 'success' && (
+                                    <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '8px', color: '#86efac', fontSize: '0.85rem' }}>
+                                        ✓ Roadmap saved successfully!
+                                    </div>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', color: '#fca5a5', fontSize: '0.85rem' }}>
+                                        ✗ Failed to save. Check backend is running.
+                                    </div>
+                                )}
+                                {saveStatus === 'error_no_goal' && (
+                                    <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(234,179,8,0.15)', border: '1px solid rgba(234,179,8,0.4)', borderRadius: '8px', color: '#fde047', fontSize: '0.85rem' }}>
+                                        ⚠ Please select a problem first from Problem Selection.
+                                    </div>
+                                )}
+                                {saveStatus === 'error_empty' && (
+                                    <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(234,179,8,0.15)', border: '1px solid rgba(234,179,8,0.4)', borderRadius: '8px', color: '#fde047', fontSize: '0.85rem' }}>
+                                        ⚠ Roadmap is empty. Wait for it to generate first.
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="panel-title">Saved Roadmaps</h3>
+                                <p className="panel-subtitle">Select a saved roadmap from your profile.</p>
+
+                                <div className="config-group">
+                                    <label>Your Roadmaps</label>
+                                    {savedRoadmaps.length === 0 ? (
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '8px' }}>No saved roadmaps found.</p>
+                                    ) : (
+                                        <select 
+                                            value={selectedRoadmapId} 
+                                            onChange={(e) => handleSelectSavedRoadmap(e.target.value)} 
+                                            className="modern-select"
+                                            style={{ width: '100%', marginTop: '8px' }}
+                                        >
+                                            {savedRoadmaps.map(rm => (
+                                                <option key={rm.id} value={rm.id}>
+                                                    {rm.goal?.title || 'Unnamed Roadmap'} ({new Date(rm.createdAt).toLocaleDateString()})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </Panel>
                     <Background color="#ffffff" gap={16} variant="dots" size={1} opacity={0.05} />
                     <Controls className="custom-controls" showInteractive={false} />
                     <MiniMap className="custom-minimap" nodeColor="#6366f1" maskColor="rgba(10, 10, 15, 0.8)" />

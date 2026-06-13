@@ -11,14 +11,16 @@ const Register = () => {
 
     const handleRegister = (e) => {
         e.preventDefault();
-        // Simulate Registration - In real app, call Firebase auth here
         console.log('Registering', name, email);
-        // On success, redirect to Mandatory Profile Setup
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('userName', name);
         navigate('/onboarding/profile');
     };
 
     const handleGoogleAuth = () => {
-        // Simulate Google Signup
+        const email = prompt("Enter your Google Account email:", "student@example.com");
+        if (!email) return;
+        localStorage.setItem('userEmail', email);
         navigate('/onboarding/profile');
     };
 

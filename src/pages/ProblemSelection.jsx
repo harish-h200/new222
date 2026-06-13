@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Filter, Zap } from 'lucide-react';
-import { supabase } from '../supabaseClient';
 import './ProblemSelection.css';
 
 const domainSkillMapping = {
@@ -20,11 +19,16 @@ const ProblemSelection = () => {
 
     useEffect(() => {
         async function fetchGoals() {
-            const { data, error } = await supabase.from('goals').select('*');
-            if (data) {
-                setGoals(data);
-            } else {
-                console.error("Error fetching goals:", error);
+            try {
+                const res = await fetch('/api/goals');
+                if (res.ok) {
+                    const data = await res.json();
+                    setGoals(data);
+                } else {
+                    console.error("Error fetching goals from local API");
+                }
+            } catch (err) {
+                console.error("Failed to connect to local API:", err);
             }
         }
         fetchGoals();
@@ -34,7 +38,7 @@ const ProblemSelection = () => {
     const allAvailableTags = Array.from(new Set(goals.flatMap(p => p.required_core_skills || [])));
 
     const handleSelectProblem = (problem) => {
-        navigate('/roadmap', { state: { problem, domains: recommendedDomains } });
+        navigate('/dashboard/roadmap', { state: { problem, domains: recommendedDomains } });
     };
 
     // Filter goals based on core skills / mock domains

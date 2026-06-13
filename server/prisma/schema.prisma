@@ -1,0 +1,152 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Course {
+  id                String               @id @default(uuid())
+  title             String
+  description       String?
+  iconType          String?              @map("icon_type")
+  durationEstimate  String?              @map("duration_estimate")
+  academicLevel     String               @map("academic_level")
+  experienceLevel   String               @map("experience_level")
+  tags              String[]
+  prerequisites     CoursePrerequisite[] @relation("CourseToPrereqs")
+  asPrerequisiteFor CoursePrerequisite[] @relation("PrereqToCourses")
+  roadmapNodes      RoadmapNode[]
+
+  @@map("courses")
+}
+
+model CoursePrerequisite {
+  courseId             String   @map("course_id")
+  prerequisiteCourseId String   @map("prerequisite_course_id")
+  isMandatory          Boolean  @default(true) @map("is_mandatory")
+  course               Course   @relation("CourseToPrereqs", fields: [courseId], references: [id], onDelete: Cascade)
+  prerequisite         Course   @relation("PrereqToCourses", fields: [prerequisiteCourseId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, prerequisiteCourseId])
+  @@map("course_prerequisites")
+}
+
+model Goal {
+  id                 String    @id @default(uuid())
+  title              String
+  requiredCoreSkills String[]  @map("required_core_skills")
+  description        String?
+  roadmaps           Roadmap[]
+
+  @@map("goals")
+}
+
+model User {
+  id                String             @id @default(uuid())
+  email             String             @unique
+  fullName          String?            @map("full_name")
+  education         String?
+  portfolio         String?
+  reason            String?
+  skills            String[]
+  academicLevel     String?            @map("academic_level")
+  experienceLevel   String?            @map("experience_level")
+  roadmaps          Roadmap[]
+  testResults       TestResult[]
+  domainAllocations DomainAllocation[]
+
+  @@map("users")
+}
+
+model Roadmap {
+  id        String        @id @default(uuid())
+  userId    String?       @map("user_id")
+  goalId    String        @map("goal_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  user      User?         @relation(fields: [userId], references: [id])
+  goal      Goal          @relation(fields: [goalId], references: [id])
+  nodes     RoadmapNode[]
+  edges     RoadmapEdge[]
+
+  @@map("roadmaps")
+}
+
+model RoadmapNode {
+  id          String        @id @default(uuid())
+  roadmapId   String        @map("roadmap_id")
+  courseId    String?       @map("course_id")
+  customLabel String?       @map("custom_label")
+  nodeType    String        @map("node_type")
+  positionX   Float         @map("position_x")
+  positionY   Float         @map("position_y")
+  status      String        @default("unlocked")
+  roadmap     Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  course      Course?       @relation(fields: [courseId], references: [id])
+  sources     RoadmapEdge[] @relation("SourceNode")
+  targets     RoadmapEdge[] @relation("TargetNode")
+
+  @@map("roadmap_nodes")
+}
+
+model RoadmapEdge {
+  id           String      @id @default(uuid())
+  roadmapId    String      @map("roadmap_id")
+  sourceNodeId String      @map("source_node_id")
+  targetNodeId String      @map("target_node_id")
+  isAnimated   Boolean     @default(true) @map("is_animated")
+  roadmap      Roadmap     @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  sourceNode   RoadmapNode @relation("SourceNode", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode   RoadmapNode @relation("TargetNode", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@map("roadmap_edges")
+}
+
+model Question {
+  id      Int      @id @default(autoincrement())
+  text    String
+  options Option[]
+
+  @@map("questions")
+}
+
+model Option {
+  id         Int      @id @default(autoincrement())
+  questionId Int      @map("question_id")
+  text       String
+  domain     String
+  weight     Json     // Stores weights like {"AI/ML": 1, "Data": 1}
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("options")
+}
+
+model Skill {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  @@map("skills")
+}
+
+model TestResult {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  scores    Json     // e.g. {"AI/ML": 8, "Backend": 5}
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("test_results")
+}
+
+model DomainAllocation {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  domain      String   // e.g. "AI/ML", "Backend", "Data"
+  reason      String   // e.g. "allocated because you scored highest in..."
+  allocatedAt DateTime @default(now()) @map("allocated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("domain_allocations")
+}

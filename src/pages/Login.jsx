@@ -8,18 +8,47 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-        // Simulate Login - In real app, call Firebase auth here
         console.log('Logging in with', email);
-        // On success, redirect to Student Dashboard or Profile Setup
-        navigate('/onboarding/profile');
+        
+        localStorage.setItem('userEmail', email);
+
+        try {
+            // Check if user already exists on the backend
+            const response = await fetch(`/api/users/${email}`);
+            if (response.ok) {
+                const user = await response.json();
+                localStorage.setItem('userName', user.fullName || '');
+                navigate('/dashboard');
+            } else {
+                navigate('/onboarding/profile');
+            }
+        } catch (error) {
+            console.error('Error logging in:', error);
+            navigate('/onboarding/profile');
+        }
     };
 
-    const handleGoogleAuth = () => {
-        // Simulate Google Login
-        console.log('Google Auth Triggered');
-        navigate('/onboarding/profile');
+    const handleGoogleAuth = async () => {
+        const email = prompt("Enter your Google Account email:", "student@example.com");
+        if (!email) return;
+
+        localStorage.setItem('userEmail', email);
+
+        try {
+            const response = await fetch(`/api/users/${email}`);
+            if (response.ok) {
+                const user = await response.json();
+                localStorage.setItem('userName', user.fullName || '');
+                navigate('/dashboard');
+            } else {
+                navigate('/onboarding/profile');
+            }
+        } catch (error) {
+            console.error('Error with Google Auth:', error);
+            navigate('/onboarding/profile');
+        }
     };
 
     return (

@@ -1,54 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './PsychometricTest.css';
 
-const questions = [
-    {
-        id: 1,
-        text: "When facing a complex problem, what excites you most?",
-        options: [
-            { text: "Building intelligent models that can learn and predict", domain: "AI/ML", weight: 2 },
-            { text: "Designing robust and scalable architectures", domain: "Backend", weight: 2 },
-            { text: "Structuring and processing massive amounts of information", domain: "Data", weight: 2 }
-        ]
-    },
-    {
-        id: 2,
-        text: "Which of these futuristic scenarios sounds most appealing as a career project?",
-        options: [
-            { text: "Developing a sentient AI assistant", domain: "AI/ML", weight: 2 },
-            { text: "Building the core infrastructure of the next fast global network", domain: "Backend", weight: 2 },
-            { text: "Creating a real-time global analytics pipeline", domain: "Data", weight: 2 }
-        ]
-    },
-    {
-        id: 3,
-        text: "In your free time, what kind of problems do you naturally gravitate towards?",
-        options: [
-            { text: "Experimenting with LLMs and new algorithms", domain: "AI/ML", weight: 2 },
-            { text: "Optimizing software and fixing system bottlenecks", domain: "Backend", weight: 2 },
-            { text: "Organizing files efficiently or writing scripts for automation", domain: "Data", weight: 2 },
-            { text: "Training models on large datasets (AI + Data)", domain: "Cross", weight: { 'AI/ML': 1, Data: 1 } }
-        ]
-    },
-    {
-        id: 4,
-        text: "How do you prefer to validate your work?",
-        options: [
-            { text: "Checking accuracy, F1 scores, and model evaluations", domain: "AI/ML", weight: 1 },
-            { text: "Running load tests and system performance benchmarks", domain: "Backend", weight: 1 },
-            { text: "Verifying data integrity and pipeline throughput", domain: "Data", weight: 1 }
-        ]
-    }
-];
-
 const PsychometricTest = () => {
     const navigate = useNavigate();
+    const [questions, setQuestions] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [currentStep, setCurrentStep] = useState(0);
     const [answers, setAnswers] = useState({});
     const [isFinished, setIsFinished] = useState(false);
     const [recommendedDomains, setRecommendedDomains] = useState([]);
+    const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+
+    useEffect(() => {
+        const email = localStorage.getItem('userEmail');
+        if (email) {
+            setLoading(true);
+            fetch(`/api/users/${email}/domain-allocations`)
+                .then(res => res.json())
+                .then(allocations => {
+                    if (allocations && allocations.length > 0) {
+                        setRecommendedDomains(allocations.map(a => a.domain));
+                        setIsFinished(true);
+                        setAlreadyCompleted(true);
+                        setLoading(false);
+                    } else {
+                        loadQuestions();
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to fetch allocations:', err);
+                    loadQuestions();
+                });
+        } else {
+            loadQuestions();
+        }
+
+        function loadQuestions() {
+            fetch('/api/questions')
+                .then(res => res.json())
+                .then(data => {
+                    setQuestions(data);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error('Failed to fetch questions:', err);
+                    setLoading(false);
+                });
+        }
+    }, []);
 
     const handleOptionSelect = (questionId, option) => {
         setAnswers(prev => ({ ...prev, [questionId]: option }));
@@ -66,15 +67,18 @@ const PsychometricTest = () => {
         if (currentStep > 0) setCurrentStep(prev => prev - 1);
     };
 
-    const calculateResults = () => {
+    const calculateResults = async () => {
         const scores = { 'AI/ML': 0, Backend: 0, Data: 0 };
 
         Object.values(answers).forEach(opt => {
             if (opt.domain === "Cross") {
-                scores['AI/ML'] += opt.weight['AI/ML'];
-                scores.Data += opt.weight.Data;
+                const wAI = typeof opt.weight === 'object' ? (opt.weight?.['AI/ML'] || 0) : opt.weight;
+                const wData = typeof opt.weight === 'object' ? (opt.weight?.Data || 0) : opt.weight;
+                scores['AI/ML'] += wAI;
+                scores.Data += wData;
             } else {
-                scores[opt.domain] += opt.weight;
+                const w = typeof opt.weight === 'object' ? (opt.weight?.[opt.domain] || 0) : opt.weight;
+                scores[opt.domain] += w;
             }
         });
 
@@ -88,6 +92,20 @@ const PsychometricTest = () => {
 
         setRecommendedDomains(recommendations);
         setIsFinished(true);
+
+        // Save results and allocations to database
+        const email = localStorage.getItem('userEmail');
+        if (email) {
+            try {
+                await fetch('/api/test-results', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, scores })
+                });
+            } catch (err) {
+                console.error('Failed to save test results to DB:', err);
+            }
+        }
     };
 
     const proceedToProblemSelection = () => {
@@ -100,8 +118,12 @@ const PsychometricTest = () => {
             <div className="test-container container animate-fade-in">
                 <div className="results-card glass-panel">
                     <CheckCircle className="success-icon" size={64} />
-                    <h2>Test Complete!</h2>
-                    <p className="results-subtitle">Based on your responses, your aptitude aligns perfectly with:</p>
+                    <h2>{alreadyCompleted ? "Your Test Results" : "Test Complete!"}</h2>
+                    <p className="results-subtitle">
+                        {alreadyCompleted 
+                            ? "You have already completed the psychometric test. Your aptitude aligns with:" 
+                            : "Based on your responses, your aptitude aligns perfectly with:"}
+                    </p>
 
                     <div className="domains-wrapper">
                         {recommendedDomains.map(domain => (
@@ -119,6 +141,26 @@ const PsychometricTest = () => {
                     <button className="btn-primary btn-large mt-8" onClick={proceedToProblemSelection}>
                         View Problem Statements <ArrowRight size={20} />
                     </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (loading) {
+        return (
+            <div className="test-container container animate-fade-in">
+                <div className="results-card glass-panel" style={{ textAlign: 'center', padding: '60px 40px' }}>
+                    <p className="results-subtitle">Loading psychometric questions...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (questions.length === 0) {
+        return (
+            <div className="test-container container animate-fade-in">
+                <div className="results-card glass-panel" style={{ textAlign: 'center', padding: '60px 40px' }}>
+                    <p className="results-subtitle">No questions loaded from database.</p>
                 </div>
             </div>
         );

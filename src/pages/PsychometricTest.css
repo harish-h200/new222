@@ -1,8 +1,8 @@
-.test-container {
-    padding-top: 100px;
+.test-container.container {
+    padding-top: 130px;
     max-width: 800px;
     margin: 0 auto;
-    min-height: calc(100vh - 100px);
+    min-height: calc(100vh - 130px);
 }
 
 .test-header {
