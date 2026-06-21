@@ -107,6 +107,20 @@ const COURSES = [
   { id: "c0000011-0000-0000-0000-000000000011", title: "Modern Natural Language Processing (LLMs & RAG)", iconType: "code", durationEstimate: "Month 6", academicLevel: "ALL", experienceLevel: "ALL", tags: ["AI/ML", "llm", "rag", "vector-db"] }
 ];
 
+const COURSE_WEIGHTS = {
+  "c0000001-0000-0000-0000-000000000001": { aiMlWeight: 0.8, backendWeight: 0.1, dataWeight: 0.5, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000002-0000-0000-0000-000000000002": { aiMlWeight: 0.9, backendWeight: 0.1, dataWeight: 0.4, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000003-0000-0000-0000-000000000003": { aiMlWeight: 0.4, backendWeight: 0.8, dataWeight: 0.3, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000004-0000-0000-0000-000000000004": { aiMlWeight: 0.2, backendWeight: 0.9, dataWeight: 0.6, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000005-0000-0000-0000-000000000005": { aiMlWeight: 0.7, backendWeight: 0.2, dataWeight: 0.5, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000006-0000-0000-0000-000000000006": { aiMlWeight: 0.2, backendWeight: 0.3, dataWeight: 0.2, aeroWeight: 0.9, financeWeight: 0.0 },
+  "c0000007-0000-0000-0000-000000000007": { aiMlWeight: 0.1, backendWeight: 0.95, dataWeight: 0.4, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000008-0000-0000-0000-000000000008": { aiMlWeight: 0.1, backendWeight: 0.85, dataWeight: 0.5, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000009-0000-0000-0000-000000000009": { aiMlWeight: 0.95, backendWeight: 0.2, dataWeight: 0.6, aeroWeight: 0.0, financeWeight: 0.0 },
+  "c0000010-0000-0000-0000-000000000010": { aiMlWeight: 0.2, backendWeight: 0.6, dataWeight: 0.2, aeroWeight: 0.85, financeWeight: 0.0 },
+  "c0000011-0000-0000-0000-000000000011": { aiMlWeight: 0.98, backendWeight: 0.3, dataWeight: 0.7, aeroWeight: 0.0, financeWeight: 0.0 }
+};
+
 const PREREQS = [
   // Numerical Methods needs Linear Algebra or Advanced Tensor Calculus
   { courseId: "c0000005-0000-0000-0000-000000000005", prerequisiteCourseId: "c0000001-0000-0000-0000-000000000001" },
@@ -211,6 +225,28 @@ async function main() {
       data: {
         courseId: p.courseId,
         prerequisiteCourseId: p.prerequisiteCourseId
+      }
+    });
+  }
+
+  console.log('Seeding course weights...');
+  for (const [courseId, w] of Object.entries(COURSE_WEIGHTS)) {
+    await prisma.courseWeight.upsert({
+      where: { courseId },
+      update: {
+        aiMlWeight: w.aiMlWeight,
+        backendWeight: w.backendWeight,
+        dataWeight: w.dataWeight,
+        aeroWeight: w.aeroWeight,
+        financeWeight: w.financeWeight
+      },
+      create: {
+        courseId,
+        aiMlWeight: w.aiMlWeight,
+        backendWeight: w.backendWeight,
+        dataWeight: w.dataWeight,
+        aeroWeight: w.aeroWeight,
+        financeWeight: w.financeWeight
       }
     });
   }

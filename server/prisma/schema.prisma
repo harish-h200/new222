@@ -19,6 +19,7 @@ model Course {
   prerequisites     CoursePrerequisite[] @relation("CourseToPrereqs")
   asPrerequisiteFor CoursePrerequisite[] @relation("PrereqToCourses")
   roadmapNodes      RoadmapNode[]
+  weight            CourseWeight?
 
   @@map("courses")
 }
@@ -57,6 +58,7 @@ model User {
   roadmaps          Roadmap[]
   testResults       TestResult[]
   domainAllocations DomainAllocation[]
+  domainWeights     UserDomainWeight[]
 
   @@map("users")
 }
@@ -149,4 +151,30 @@ model DomainAllocation {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("domain_allocations")
+}
+
+model CourseWeight {
+  id             String @id @default(uuid())
+  courseId       String  @unique @map("course_id")
+  aiMlWeight     Float   @default(0.0) @map("ai_ml_weight")
+  backendWeight  Float   @default(0.0) @map("backend_weight")
+  dataWeight     Float   @default(0.0) @map("data_weight")
+  aeroWeight     Float   @default(0.0) @map("aero_weight")
+  financeWeight  Float   @default(0.0) @map("finance_weight")
+  course         Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_weights")
+}
+
+model UserDomainWeight {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  domain           String
+  weight           Float
+  normalizedWeight Float    @map("normalized_weight")
+  computedAt       DateTime @default(now()) @map("computed_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, domain])
+  @@map("user_domain_weights")
 }
